@@ -4,6 +4,8 @@ from telegram import Update
 
 from config import TOKEN
 
+MAX_REVIEWS = 300
+
 # Создание таблицы, если её нет
 def create_table():
     conn = sqlite3.connect('reviews.db')
@@ -20,11 +22,12 @@ def create_table():
     conn.commit()
     conn.close()
 
+
 # Определение команды /start
 def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text('Привет! Отправь свой отзыв.')
 
-# Обработка нового отзыва
+
 # Обработка нового отзыва
 def handle_review(update: Update, context: CallbackContext) -> None:
     review_text = update.message.text
@@ -34,14 +37,24 @@ def handle_review(update: Update, context: CallbackContext) -> None:
     cursor = conn.cursor()
     cursor.execute("INSERT INTO reviews (text) VALUES (?)", (review_text,))
     conn.commit()
+
+    # Проверка количества записей и удаление старых
+    cursor.execute("SELECT COUNT(*) FROM reviews")
+    count = cursor.fetchone()[0]
+
+    if count > MAX_REVIEWS:
+        excess = count - MAX_REVIEWS
+        cursor.execute("DELETE FROM reviews WHERE id IN (SELECT id FROM reviews ORDER BY timestamp LIMIT ?)", (excess,))
+        conn.commit()
+
     conn.close()
 
-    # Отправка отзыва в указанный чат
-    chat_id = '-1002026921664'  # Замените на актуальный chat_id вашего чата
+    chat_id = '-1002026921664'
     context.bot.send_message(chat_id, f'Новый отзыв: {review_text}')
 
     # Ответ пользователю
     update.message.reply_text('Спасибо за отзыв!')
+
 
 # Просмотр последних отзывов
 def view_reviews(update: Update, context: CallbackContext) -> None:
@@ -56,6 +69,7 @@ def view_reviews(update: Update, context: CallbackContext) -> None:
     else:
         for review in reviews:
             update.message.reply_text(f'{review[2]}: {review[1]}')
+
 
 # Запуск бота
 def main() -> None:
